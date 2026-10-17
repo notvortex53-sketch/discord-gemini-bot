@@ -542,7 +542,7 @@ client.on('messageCreate', async (message) => {
     return void send(message, `**What I know about you:**\n${p.facts.map((f) => `• ${f}`).join('\n')}${p.optOut ? '\n(learning is off)' : ''}`);
   }
 
-  if ((cmd === 'forget' && /^me$/i.test(arg)) || (cmd === 'profile' && /^(clear|reset|delete)$/i.test(arg))) {
+  if ((cmd === 'forget' && /^me$/i.test(arg)) \vert{}\vert{} (cmd === 'profile' && /^(clear\vert{}reset\vert{}delete)$/i.test(arg))) {
     const p = ensureProfile(user);
     p.facts = [];
     learnBuffer.delete(user.id);
@@ -753,10 +753,6 @@ client.on('messageCreate', async (message) => {
     }
   } catch (err) {
     console.error('Gemini error:', err?.message || err);
-    const busy = err?.status === 429 || /429|quota|rate/i.test(err?.message || '');
-    await message
-      .reply(busy ? 'Rate limited, try again in a bit.' : 'Something went wrong, try again in a moment.')
-      .catch(() => {});
   }
 });
 
@@ -774,4 +770,4 @@ function shutdown() {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-client.login("MTU1NjIzOTkyMzA4MDg1OTY0OA.Gotxmp.LXlrij0aVzx5wL3TTljsoUr5fi0ob3E9CFWYsg");
+client.login(token);
