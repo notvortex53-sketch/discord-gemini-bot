@@ -1,6 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const { Client, GatewayIntentBits, Partials, ChannelType } = require('discord.js');
 const { GoogleGenAI } = require('@google/genai');
 
@@ -767,12 +768,12 @@ function shutdown() {
   client.destroy();
   process.exit(0);
 }
-const http = require('http');
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
 http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Aether bot is running!');
 }).listen(process.env.PORT || 3000);
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
 
 client.login(token);
