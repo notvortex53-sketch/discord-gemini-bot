@@ -774,4 +774,4 @@ function shutdown() {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-client.login(token);
+client.login("MTU1NjIzOTkyMzA4MDg1OTY0OA.Gotxmp.LXlrij0aVzx5wL3TTljsoUr5fi0ob3E9CFWYsg");
