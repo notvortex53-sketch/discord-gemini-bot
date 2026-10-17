@@ -767,6 +767,11 @@ function shutdown() {
   client.destroy();
   process.exit(0);
 }
+const http = require('http');
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Aether bot is running!');
+}).listen(process.env.PORT || 3000);
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
