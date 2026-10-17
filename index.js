@@ -21,6 +21,11 @@ const OWNERS_TEXT = OWNERS.join(' and ');
 const MEMORY_FILE = path.join(__dirname, 'memory.json'); // thread memory
 const DATA_FILE = path.join(__dirname, 'data.json'); // user profiles + per-channel settings
 
+const token = process.env.DISCORD_TOKEN || process.env.TOKEN;
+if (!token) {
+  console.error('CRITICAL ERROR: No Discord token found in process.env.DISCORD_TOKEN or process.env.TOKEN!');
+}
+
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const client = new Client({
@@ -190,7 +195,7 @@ function systemFor({ channelId, mem, user, chatter } = {}) {
     s += `\nWhat you know about ${user.name} (use naturally, do not recite): ${profile.facts.join('; ')}.`;
   }
   if (chatter) s += `\nRecent chatter in the channel (background only, not addressed to you):\n${chatter}`;
-  if (mem?.facts?.length) s += `\nThings to remember about this thread: ${mem.facts.join('; ')}.`;
+  if (mem?.facts?.length) s += `\nThings to remember about this thread: ${mem.facts.join('; ')}`;
   if (mem?.summary) s += `\nSummary of earlier conversation in this thread: ${mem.summary}`;
   return s;
 }
@@ -352,7 +357,6 @@ async function wiki(q) {
   return `**${r.title}**: ${short}${link ? `\n<${link}>` : ''}`;
 }
 
-// Google-Search-grounded answer for anything that needs fresh info
 async function groundedSearch(q, ctx) {
   const res = await ai.models.generateContent({
     model: MODEL,
@@ -384,7 +388,6 @@ const LIVE = {
 };
 const LIVE_ALIASES = { forecast: 'weather', price: 'crypto', fx: 'convert', news: 'search', google: 'search', lookup: 'wiki' };
 
-// Natural-language routing: "weather in Delhi", "price of btc", "100 usd to inr", "time in Tokyo"
 function routeLive(raw) {
   let m;
   const text = raw.replace(/[?!.\s]+$/, '');
@@ -407,7 +410,6 @@ function routeLive(raw) {
   return null;
 }
 
-// ---------- Helpers ----------
 const toContent = (m) => ({ role: m.role, parts: [{ text: m.text }] });
 
 async function generate(contents, { channelId, mem, system, maxTokens = 300, user, chatter } = {}) {
@@ -460,7 +462,6 @@ function parseMake(raw) {
   return { filename, note: m[2].trim().slice(0, 200), content };
 }
 
-// Recent messages from other people in the channel, so replies fit what is going on
 async function getChatter(message, skip) {
   if (skip || data.noContext[message.channel.id]) return '';
   try {
@@ -476,7 +477,6 @@ async function getChatter(message, skip) {
   }
 }
 
-// ---------- Events ----------
 client.once('clientReady', () => {
   client.user.setActivity('aether help');
   console.log(`Logged in as ${client.user.tag} | model: ${MODEL}`);
@@ -487,12 +487,11 @@ client.on('messageCreate', async (message) => {
 
   const isDM = message.channel.type === ChannelType.DM;
   const isThread = !!message.channel.isThread?.();
-  const inOwnThread = isThread && message.channel.ownerId === client.user.id; // no prefix needed
+  const inOwnThread = isThread && message.channel.ownerId === client.user.id;
   const isMentioned = message.mentions.has(client.user);
   const hasWakeWord = WAKE_WORD.test(message.content.trim());
   if (!isDM && !isMentioned && !hasWakeWord && !inOwnThread) return;
 
-  // Strip wake word + bot mention
   let text = message.content
     .trim()
     .replace(WAKE_WORD, '')
@@ -511,10 +510,8 @@ client.on('messageCreate', async (message) => {
   const mem = isThread ? getThreadMem(channelId) : null;
   const user = { id: message.author.id, name: message.member?.displayName || message.author.username };
 
-  // ----- Local commands (no API call) -----
   if (cmd === 'help' && !arg) return void send(message, HELP_TEXT);
 
-  // Cooldown (everything below)
   const now = Date.now();
   if (now - (cooldowns.get(message.author.id) || 0) < COOLDOWN_MS) return;
   cooldowns.set(message.author.id, now);
@@ -525,7 +522,6 @@ client.on('messageCreate', async (message) => {
     return void send(message, `I'm Aether, created and owned by **${OWNERS.join('** and **')}**.`);
   }
 
-  // Mood toggle (per channel)
   if (cmd === 'mood') {
     const key = arg.toLowerCase();
     if (!MOODS[key]) {
@@ -540,14 +536,13 @@ client.on('messageCreate', async (message) => {
     return void send(message, `Mood set to **${key}**.`);
   }
 
-  // Personal profile (context-aware memory)
   if (cmd === 'profile' && !arg) {
     const p = data.users[user.id];
     if (!p?.facts.length) return void send(message, "I don't know much about you yet. Chat with me or use `aether remember <fact>`.");
     return void send(message, `**What I know about you:**\n${p.facts.map((f) => `• ${f}`).join('\n')}${p.optOut ? '\n(learning is off)' : ''}`);
   }
 
-  if ((cmd === 'forget' && /^me$/i.test(arg)) || (cmd === 'profile' && /^(clear|reset|delete)$/i.test(arg))) {
+  if ((cmd === 'forget' && /^me$/i.test(arg)) \vert{}\vert{} (cmd === 'profile' && /^(clear\vert{}reset\vert{}delete)$/i.test(arg))) {
     const p = ensureProfile(user);
     p.facts = [];
     learnBuffer.delete(user.id);
@@ -637,15 +632,13 @@ client.on('messageCreate', async (message) => {
       return void send(message, `Current: **${current}**\nOptions: ${Object.keys(PERSONAS).join(', ')}`);
     }
     personaByChannel.set(channelId, key);
-    if (!mem) shortMem.delete(channelId); // fresh start in the new voice
+    if (!mem) shortMem.delete(channelId);
     return void send(message, `Persona set to **${key}**.`);
   }
 
-  // ----- API-powered features -----
   try {
     await message.channel.sendTyping();
 
-    // Reply context (used by make + chat)
     let context = '';
     if (message.reference?.messageId) {
       const ref = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
@@ -654,7 +647,6 @@ client.on('messageCreate', async (message) => {
       }
     }
 
-    // Make things: code, docs, stories, configs...
     if (cmd === 'make' || cmd === 'create') {
       if (!arg) return void send(message, 'Usage: `aether make <what to create>`');
       const raw = await generate([{ role: 'user', parts: [{ text: `${context}${arg}` }] }], {
@@ -672,7 +664,6 @@ client.on('messageCreate', async (message) => {
       });
     }
 
-    // Make images
     if (cmd === 'image' || cmd === 'draw' || cmd === 'imagine') {
       if (!arg) return void send(message, 'Usage: `aether image <what to draw>`');
       const res = await ai.models.generateContent({
@@ -688,7 +679,6 @@ client.on('messageCreate', async (message) => {
       });
     }
 
-    // One-shot prompt commands
     const pc = PROMPT_COMMANDS[cmd];
     if (pc && (arg || !pc.needsArg)) {
       const reply = await generate([{ role: 'user', parts: [{ text: pc.build(arg) }] }], { channelId, user });
@@ -696,7 +686,6 @@ client.on('messageCreate', async (message) => {
     }
     if (pc && pc.needsArg && !arg) return void send(message, `Usage: ${pc.usage}`);
 
-    // TL;DR of recent chat
     if (cmd === 'tldr' && (!arg || /^\d+$/.test(arg))) {
       const count = Math.min(Math.max(parseInt(arg || '25', 10) || 25, 5), 50);
       const fetched = await message.channel.messages.fetch({ limit: count, before: message.id });
@@ -710,7 +699,6 @@ client.on('messageCreate', async (message) => {
       return void send(message, reply);
     }
 
-    // Live data: explicit commands, or natural phrasing like "weather in Delhi"
     cmd = LIVE_ALIASES[cmd] || cmd;
     let liveKey = null;
     let liveArg = arg;
@@ -730,7 +718,6 @@ client.on('messageCreate', async (message) => {
       }
     }
 
-    // Normal chat (memory + profile + channel context + reply context + images)
     const userText = `${user.name}: ${context}${text || 'Describe this image briefly.'}`;
 
     const parts = [{ text: userText }];
@@ -745,7 +732,6 @@ client.on('messageCreate', async (message) => {
       channelId, mem, user, chatter,
     });
 
-    // Store text only (keeps memory light)
     history.push(
       { role: 'user', text: img ? `${userText} [image]` : userText },
       { role: 'model', text: reply }
@@ -759,7 +745,6 @@ client.on('messageCreate', async (message) => {
 
     await send(message, reply);
 
-    // Learn about the user in the background
     if (text) learn(user.id, user.name, text).catch(() => {});
 
     if (mem) {
@@ -775,7 +760,6 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-// ---------- Housekeeping ----------
 setInterval(() => {
   const cutoff = Date.now() - 60 * 1000;
   for (const [id, t] of cooldowns) if (t < cutoff) cooldowns.delete(id);
@@ -790,4 +774,4 @@ function shutdown() {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(token);
