@@ -542,7 +542,7 @@ client.on('messageCreate', async (message) => {
     return void send(message, `**What I know about you:**\n${p.facts.map((f) => `• ${f}`).join('\n')}${p.optOut ? '\n(learning is off)' : ''}`);
   }
 
-  if ((cmd === 'forget' && /^me$/i.test(arg)) \vert{}\vert{} (cmd === 'profile' && /^(clear\vert{}reset\vert{}delete)$/i.test(arg))) {
+  if ((cmd === 'forget' && /^me$/i.test(arg)) || (cmd === 'profile' && /^(clear|reset|delete)$/i.test(arg))) {
     const p = ensureProfile(user);
     p.facts = [];
     learnBuffer.delete(user.id);
